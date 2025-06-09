@@ -1,0 +1,103 @@
+/* Tooltip CSS for hover functionality - Task 11 */
+
+/* Tooltip styling for card price overlay */
+.card-price-tooltip {
+    position: absolute;
+    background: linear-gradient(135deg, #2c3e50, #34495e);
+    color: white;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-size: 13px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    z-index: 10000;
+    max-width: 280px;
+    min-width: 200px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    pointer-events: none;
+}
+
+.card-price-tooltip.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.card-price-tooltip-header {
+    font-weight: bold;
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: #ecf0f1;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    padding-bottom: 6px;
+}
+
+.card-price-tooltip-prices {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 12px;
+    margin-top: 8px;
+}
+
+.card-price-tooltip-label {
+    color: #bdc3c7;
+    font-size: 12px;
+}
+
+.card-price-tooltip-value {
+    color: #2ecc71;
+    font-weight: bold;
+    text-align: right;
+}
+
+.card-price-tooltip-value.min {
+    color: #27ae60;
+}
+
+.card-price-tooltip-value.avg {
+    color: #f39c12;
+}
+
+.card-price-tooltip-value.max {
+    color: #e74c3c;
+}
+
+.card-price-tooltip-footer {
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 11px;
+    color: #95a5a6;
+    text-align: center;
+}
+
+/* Arrow pointing to the hovered element */
+.card-price-tooltip::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-bottom: 6px solid #2c3e50;
+}
+
+/* Responsive positioning */
+.card-price-tooltip.bottom::before {
+    top: -6px;
+    border-bottom: 6px solid #2c3e50;
+    border-top: none;
+}
+
+.card-price-tooltip.top::before {
+    bottom: -6px;
+    top: auto;
+    border-top: 6px solid #2c3e50;
+    border-bottom: none;
+}

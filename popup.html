@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Card Price Lookup</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Card Price Lookup</h1>
+        
+        <div class="input-section">
+            <label for="input">Enter card list:</label>
+            <textarea id="input" placeholder="Enter cards (one per line)&#10;Example: sv1a tropius"></textarea>
+            <button id="go">Lookup</button>
+        </div>
+        
+        <div class="toggle-section">
+            <label for="hoverToggle">
+                <input type="checkbox" id="hoverToggle">
+                Enable hover detection
+            </label>
+        </div>
+        
+        <div class="results-section">
+            <table id="results">
+                <thead>
+                    <tr>
+                        <th>Set</th>
+                        <th>Name</th>
+                        <th>Min</th>
+                        <th>Avg</th>
+                        <th>Max</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+                <tfoot>
+                    <tr class="totals-row">
+                        <td colspan="2"><strong>TOTALS:</strong></td>
+                        <td id="total-min"><strong>€0.00</strong></td>
+                        <td id="total-avg"><strong>€0.00</strong></td>
+                        <td id="total-max"><strong>€0.00</strong></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+    
+    <script src="popup.js"></script>
+</body>
+</html>

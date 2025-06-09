@@ -1,0 +1,1 @@
+{"manifest_version":3,"name":"Card Price Lookup","version":"1.0","description":"Look up Pokemon card prices","permissions":["storage","activeTab"],"background":{"service_worker":"background.js"},"action":{"default_popup":"popup.html"},"content_scripts":[{"matches":["<all_urls>"],"js":["content.js"],"css":["tooltip.css"],"run_at":"document_end"}]}
