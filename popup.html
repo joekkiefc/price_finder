@@ -13,6 +13,20 @@
         <div class="input-section">
             <label for="input">Enter card list:</label>
             <textarea id="input" placeholder="Enter cards (one per line)&#10;Example: sv1a tropius"></textarea>
+            
+            <!-- New set-specific search option -->
+            <div class="set-search-section">
+                <label for="setSpecificToggle">
+                    <input type="checkbox" id="setSpecificToggle">
+                    Search in specific set only
+                </label>
+                <div id="setInputContainer" class="set-input-container" style="display: none;">
+                    <label for="setNumber">Set number:</label>
+                    <input type="text" id="setNumber" placeholder="e.g. sv11b, sv1a, etc." maxlength="20">
+                    <small>When enabled, search for card numbers only within this set</small>
+                </div>
+            </div>
+            
             <button id="go">Lookup</button>
         </div>
         
@@ -21,6 +35,19 @@
                 <input type="checkbox" id="hoverToggle">
                 Enable hover detection
             </label>
+            
+            <!-- New hover set-specific option -->
+            <div class="hover-set-section" style="margin-top: 10px;">
+                <label for="hoverSetSpecificToggle">
+                    <input type="checkbox" id="hoverSetSpecificToggle">
+                    Limit hover to specific set
+                </label>
+                <div id="hoverSetInputContainer" class="hover-set-input-container" style="display: none;">
+                    <label for="hoverSetNumber">Set number for hover:</label>
+                    <input type="text" id="hoverSetNumber" placeholder="e.g. sv11b, sv1a, etc." maxlength="20">
+                    <small>Only show hover tooltips for cards from this set</small>
+                </div>
+            </div>
         </div>
         
         <div class="results-section">

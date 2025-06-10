@@ -7,6 +7,10 @@ let hoverTimeout = null;
 let currentTooltip = null;
 let hoverEnabled = true; // Default enabled (Task 12)
 
+// NEW: Hover set-specific mode variables
+let hoverSetSpecificMode = false;
+let hoverSetNumber = '';
+
 // Listen for toggle messages from popup (Task 12)
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'toggleHover') {
@@ -20,12 +24,27 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         
         sendResponse({ success: true });
     }
+    
+    // NEW: Handle hover set-specific mode updates
+    if (request.action === 'updateHoverSetMode') {
+        hoverSetSpecificMode = request.enabled;
+        hoverSetNumber = request.setNumber ? request.setNumber.toLowerCase() : '';
+        console.log('Hover set-specific mode updated:', hoverSetSpecificMode ? 'enabled' : 'disabled', 'Set:', hoverSetNumber);
+        
+        sendResponse({ success: true });
+    }
 });
 
 // Check initial hover setting on load
-chrome.storage.sync.get(['hoverEnabled'], (result) => {
+chrome.storage.sync.get(['hoverEnabled', 'hoverSetSpecific', 'hoverSetNumber'], (result) => {
     hoverEnabled = result.hoverEnabled !== false; // Default to true
-    console.log('Initial hover setting:', hoverEnabled ? 'enabled' : 'disabled');
+    hoverSetSpecificMode = result.hoverSetSpecific || false;
+    hoverSetNumber = result.hoverSetNumber ? result.hoverSetNumber.toLowerCase() : '';
+    console.log('Initial hover settings:', {
+        enabled: hoverEnabled ? 'enabled' : 'disabled',
+        setSpecific: hoverSetSpecificMode ? 'enabled' : 'disabled',
+        setNumber: hoverSetNumber
+    });
 });
 
 // Parse text to extract card information (Task 9)
@@ -33,20 +52,60 @@ function parseHoverText(text) {
     // Clean the text
     const cleanText = text.replace(/\s+/g, ' ').trim();
     console.log('🔍 Parsing hover text:', cleanText);
+    console.log('🎯 Hover set-specific mode:', hoverSetSpecificMode ? 'enabled' : 'disabled', 'Set:', hoverSetNumber);
     
-    // Patterns to match common card formats:
-    // SV10 130/098, sv1a tropius, Team Rocket's Wanaider AR SV10 099/098, etc.
+    // NEW: Handle hover set-specific mode
+    if (hoverSetSpecificMode && hoverSetNumber) {
+        console.log('🔧 Using hover set-specific mode for set:', hoverSetNumber);
+        
+        // In set-specific mode, prioritize card number detection
+        const cardNumberMatch = cleanText.match(/\b(\d+)\b/);
+        if (cardNumberMatch) {
+            const cardNumber = parseInt(cardNumberMatch[1]).toString(); // Remove leading zeros
+            console.log('✅ Set-specific hover - Card number found:', cardNumber, 'in set:', hoverSetNumber);
+            return {
+                set_number: hoverSetNumber,
+                card_number: cardNumber,
+                name: null,
+                original: cleanText,
+                search_mode: 'hover_set_specific'
+            };
+        }
+        
+        // If no card number, try to extract a card name for set-specific search
+        const nameMatch = cleanText.match(/\b([a-zA-Z][a-zA-Z\s']*[a-zA-Z])\b/);
+        if (nameMatch) {
+            const cardName = nameMatch[1].toLowerCase();
+            console.log('✅ Set-specific hover - Card name found:', cardName, 'in set:', hoverSetNumber);
+            return {
+                set_number: hoverSetNumber,
+                card_number: null,
+                name: cardName,
+                original: cleanText,
+                search_mode: 'hover_set_specific'
+            };
+        }
+        
+        console.log('❌ Set-specific hover - No card info found in:', cleanText);
+        return null;
+    }
+    
+    // EXISTING: Normal parsing patterns (when not in set-specific mode)
     const patterns = [
-        // Pattern 1: Any text ending with SET CARDNUM/TOTAL (like "Team Rocket's Wanaider AR SV10 099/098")
-        /([a-zA-Z]+\d+[a-zA-Z]*)\s+(\d+)\/(\d+)/i,
-        // Pattern 2: Name (SET CARDNUM) format (like "Team Rocket's Mewtwo ex (sv10 125)")
-        /(.+?)\s*\(([a-zA-Z]+\d+[a-zA-Z]*)\s+(\d+)\)/i,
-        // Pattern 3: SET followed by name (sv1a tropius)
-        /\b([a-zA-Z]+\d+[a-zA-Z]*)\s+([a-zA-Z][a-zA-Z\s']*[a-zA-Z])\b/i,
-        // Pattern 4: Name followed by SET (tropius sv1a)  
-        /\b([a-zA-Z][a-zA-Z\s']*[a-zA-Z])\s+([a-zA-Z]+\d+[a-zA-Z]*)\b/i,
-        // Pattern 5: Just SET CODE extraction from any text
-        /\b([a-zA-Z]+\d+[a-zA-Z]*)\b/i
+        // Pattern 1: Any text ending with SET CARDNUM/TOTAL (like "Team Rocket's Wanaider AR SV10 099/098" or "AR) Pururi1 (124/086)")
+        /([a-zA-Z]+\d+[a-zA-Z]*|[a-zA-Z]{2,})\s+(\d+)\/(\d+)/i,
+        // Pattern 2: Name (SET CARDNUM) format (like "Team Rocket's Mewtwo ex (sv10 125)" or "Pururi1 (AR 124)")
+        /(.+?)\s*\(([a-zA-Z]+\d+[a-zA-Z]*|[a-zA-Z]{2,})\s+(\d+)\)/i,
+        // Pattern 3: SET followed by name (sv1a tropius or AR wartortle)
+        /\b([a-zA-Z]+\d+[a-zA-Z]*|[a-zA-Z]{2,})\s+([a-zA-Z][a-zA-Z\s']*[a-zA-Z])\b/i,
+        // Pattern 4: Name followed by SET (tropius sv1a or wartortle AR)  
+        /\b([a-zA-Z][a-zA-Z\s']*[a-zA-Z])\s+([a-zA-Z]+\d+[a-zA-Z]*|[a-zA-Z]{2,})\b/i,
+        // Pattern 5: Just SET CODE extraction from any text (sv1a, AR, BW, etc.)
+        /\b([a-zA-Z]+\d+[a-zA-Z]*|[a-zA-Z]{2,})\b/i,
+        // Pattern 6: Card number followed by card name (171 wartortle)
+        /\b(\d+)\s+([a-zA-Z][a-zA-Z\s']*[a-zA-Z])\b/i,
+        // Pattern 7: Card name followed by card number (wartortle 171)
+        /\b([a-zA-Z][a-zA-Z\s']*[a-zA-Z])\s+(\d+)\b/i
     ];
     
     for (let i = 0; i < patterns.length; i++) {
@@ -62,38 +121,50 @@ function parseHoverText(text) {
             if (i === 0) {
                 // Pattern 1: "Team Rocket's Wanaider AR SV10 099/098" format
                 set_number = match[1].toLowerCase();
-                card_number = match[2];
+                card_number = parseInt(match[2]).toString(); // Remove leading zeros
                 // Extract name from everything before the set code
                 const beforeSet = cleanText.substring(0, cleanText.indexOf(match[1])).trim();
                 if (beforeSet && beforeSet.length > 2) {
                     name = beforeSet.toLowerCase();
                 }
                 console.log('✅ Pattern 1 - Complex card:', cleanText, '→ set:', set_number, 'card:', card_number, 'name:', name);
-                return { set_number, card_number, name, original: cleanText };
+                return { set_number, card_number, name, original: cleanText, search_mode: 'hover_normal' };
             } else if (i === 1) {
                 // Pattern 2: "Team Rocket's Mewtwo ex (sv10 125)" format
                 name = match[1].toLowerCase().trim();
                 set_number = match[2].toLowerCase();
-                card_number = match[3];
+                card_number = parseInt(match[3]).toString(); // Remove leading zeros
                 console.log('✅ Pattern 2 - Name (Set Card):', cleanText, '→ name:', name, 'set:', set_number, 'card:', card_number);
-                return { set_number, card_number, name, original: cleanText };
+                return { set_number, card_number, name, original: cleanText, search_mode: 'hover_normal' };
             } else if (i === 2) {
                 // sv1a tropius format
                 set_number = match[1].toLowerCase();
                 name = match[2].toLowerCase();
                 console.log('✅ Pattern 3 - Set + Name:', cleanText, '→ set:', set_number, 'name:', name);
-                return { set_number, name, card_number: null, original: cleanText };
+                return { set_number, name, card_number: null, original: cleanText, search_mode: 'hover_normal' };
             } else if (i === 3) {
                 // tropius sv1a format
                 name = match[1].toLowerCase();
                 set_number = match[2].toLowerCase();
                 console.log('✅ Pattern 4 - Name + Set:', cleanText, '→ name:', name, 'set:', set_number);
-                return { set_number, name, card_number: null, original: cleanText };
+                return { set_number, name, card_number: null, original: cleanText, search_mode: 'hover_normal' };
             } else if (i === 4) {
                 // Just set code fallback
                 set_number = match[1].toLowerCase();
                 console.log('✅ Pattern 5 - Set only:', cleanText, '→ set:', set_number);
-                return { set_number, name: null, card_number: null, original: cleanText };
+                return { set_number, name: null, card_number: null, original: cleanText, search_mode: 'hover_normal' };
+            } else if (i === 5) {
+                // Card number followed by card name
+                card_number = parseInt(match[1]).toString(); // Remove leading zeros
+                name = match[2];
+                console.log('✅ Pattern 6 - Card number followed by card name:', cleanText, '→ card:', card_number, 'name:', name);
+                return { set_number: null, card_number, name, original: cleanText, search_mode: 'hover_normal' };
+            } else if (i === 6) {
+                // Card name followed by card number
+                name = match[1];
+                card_number = parseInt(match[2]).toString(); // Remove leading zeros
+                console.log('✅ Pattern 7 - Card name followed by card number:', cleanText, '→ name:', name, 'card:', card_number);
+                return { set_number: null, card_number, name, original: cleanText, search_mode: 'hover_normal' };
             }
         }
     }
@@ -138,12 +209,17 @@ function showPriceTooltip(element, priceData, cardInfo) {
     // Use first price result (in case multiple cards match)
     const data = priceData[0];
     
+    // Add indicator for set-specific mode
+    const setSpecificIndicator = cardInfo.search_mode === 'hover_set_specific' 
+        ? '<span style="color: #ff9800; font-size: 10px; font-weight: bold;">[HOVER SET-SPECIFIC]</span><br>' 
+        : '';
+    
     // Create tooltip element
     const tooltip = document.createElement('div');
     tooltip.className = 'card-price-tooltip';
     tooltip.innerHTML = `
         <div class="card-price-tooltip-header">
-            ${data.name || cardInfo.name || 'Card'} (${(data.set_number || cardInfo.set_number || '').toUpperCase()})
+            ${setSpecificIndicator}${data.name || cardInfo.name || 'Card'} (${(data.set_number || cardInfo.set_number || '').toUpperCase()})
         </div>
         <div class="card-price-tooltip-prices">
             <span class="card-price-tooltip-label">Min:</span>
@@ -193,7 +269,8 @@ function showPriceTooltip(element, priceData, cardInfo) {
         tooltip.classList.add('show');
     }, 10);
     
-    console.log('Tooltip shown for:', data.name || cardInfo.name);
+    const modeText = cardInfo.search_mode === 'hover_set_specific' ? ' (set-specific mode)' : '';
+    console.log('Tooltip shown for:', data.name || cardInfo.name, modeText);
 }
 
 // Hide tooltip
