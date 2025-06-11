@@ -11,9 +11,30 @@
         <h1>Card Price Lookup</h1>
         
         <div class="input-section">
-            <label for="input">Enter card list:</label>
-            <textarea id="input" placeholder="Enter cards (one per line)&#10;Example: sv1a tropius"></textarea>
-            <button id="go">Lookup</button>
+            <h2>Voer Kaarten In</h2>
+            <div class="table-controls">
+                <button id="addRowButton">+ Rij Toevoegen</button>
+                <button id="clearAllButton">Alles Wissen</button>
+            </div>
+            
+            <div class="input-table-container">
+                <table id="inputTable">
+                    <thead>
+                        <tr>
+                            <th>Naam</th>
+                            <th>Set</th>
+                            <th>Nummer</th>
+                            <th>Type</th>
+                            <th>Actie</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inputTableBody">
+                        <!-- Rows will be added dynamically -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <button id="searchButton">Zoeken</button>
         </div>
         
         <div class="toggle-section">
@@ -24,11 +45,14 @@
         </div>
         
         <div class="results-section">
+            <div id="results-info"></div>
             <table id="results">
                 <thead>
                     <tr>
                         <th>Set</th>
                         <th>Name</th>
+                        <th>Number</th>
+                        <th>Type</th>
                         <th>Min</th>
                         <th>Avg</th>
                         <th>Max</th>
@@ -38,7 +62,7 @@
                 </tbody>
                 <tfoot>
                     <tr class="totals-row">
-                        <td colspan="2"><strong>TOTALS:</strong></td>
+                        <td colspan="4"><strong>TOTALS:</strong></td>
                         <td id="total-min"><strong>€0.00</strong></td>
                         <td id="total-avg"><strong>€0.00</strong></td>
                         <td id="total-max"><strong>€0.00</strong></td>

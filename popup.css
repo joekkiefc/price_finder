@@ -1,131 +1,290 @@
-/* Basic styling for the popup */
+/* Card Price Lookup - Popup Styles */
+
 body {
-    font-family: Arial, sans-serif;
+    width: 800px;
+    min-height: 600px;
     margin: 0;
     padding: 0;
-    width: 400px;
-    min-height: 500px;
-    background-color: #f5f5f5;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #333;
 }
 
 .container {
     padding: 20px;
+    background: white;
+    margin: 0;
+    min-height: 600px;
 }
 
 h1 {
     margin: 0 0 20px 0;
-    color: #333;
-    font-size: 20px;
+    color: #2c3e50;
+    font-size: 24px;
     text-align: center;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 10px;
 }
 
-/* Input section styling */
+h2 {
+    margin: 0 0 15px 0;
+    color: #2c3e50;
+    font-size: 18px;
+}
+
 .input-section {
     margin-bottom: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
 }
 
-label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: bold;
-    color: #555;
+.table-controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
 }
 
-#input {
-    width: 100%;
-    height: 120px;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-family: Arial, sans-serif;
-    font-size: 14px;
-    resize: vertical;
-    box-sizing: border-box;
-}
-
-#go {
-    width: 100%;
-    padding: 12px;
-    margin-top: 10px;
-    background-color: #4CAF50;
-    color: white;
+.table-controls button {
+    padding: 10px 20px;
     border: none;
     border-radius: 4px;
-    font-size: 16px;
     cursor: pointer;
+    font-size: 15px;
+    font-weight: bold;
+    transition: all 0.3s;
 }
 
-#go:hover {
-    background-color: #45a049;
+#addRowButton {
+    background: linear-gradient(135deg, #27ae60, #2ecc71);
+    color: white;
 }
 
-/* Toggle section styling */
+#addRowButton:hover {
+    background: linear-gradient(135deg, #229954, #27ae60);
+    transform: translateY(-1px);
+}
+
+#clearAllButton {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    color: white;
+}
+
+#clearAllButton:hover {
+    background: linear-gradient(135deg, #c0392b, #a93226);
+    transform: translateY(-1px);
+}
+
+.input-table-container {
+    background: white;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid #dee2e6;
+    margin-bottom: 15px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+#inputTable {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+#inputTable thead th {
+    background: linear-gradient(135deg, #6c757d, #5a6268);
+    color: white;
+    padding: 15px 12px;
+    text-align: left;
+    font-weight: bold;
+    font-size: 15px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+#inputTable thead th:nth-child(1) { width: 30%; } /* Naam */
+#inputTable thead th:nth-child(2) { width: 20%; } /* Set */
+#inputTable thead th:nth-child(3) { width: 20%; } /* Nummer */
+#inputTable thead th:nth-child(4) { width: 20%; } /* Type */
+#inputTable thead th:nth-child(5) { width: 10%; } /* Actie */
+
+#inputTable tbody td {
+    padding: 12px;
+    border-bottom: 1px solid #e9ecef;
+    vertical-align: middle;
+}
+
+#inputTable tbody tr:nth-child(even) {
+    background-color: #f8f9fa;
+}
+
+#inputTable input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 14px;
+    box-sizing: border-box;
+    transition: border-color 0.3s;
+}
+
+#inputTable input:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+}
+
+.delete-row-btn {
+    background: #dc3545;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    transition: background 0.3s;
+    width: 100%;
+}
+
+.delete-row-btn:hover {
+    background: #c82333;
+}
+
+#searchButton {
+    background: linear-gradient(135deg, #3498db, #2980b9);
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 18px;
+    font-weight: bold;
+    transition: all 0.3s;
+    width: 100%;
+}
+
+#searchButton:hover {
+    background: linear-gradient(135deg, #2980b9, #1f639a);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
 .toggle-section {
     margin-bottom: 20px;
-    padding: 10px;
-    background-color: #e9e9e9;
-    border-radius: 4px;
+    padding: 12px;
+    background: #e3f2fd;
+    border-radius: 6px;
+    border-left: 4px solid #2196f3;
 }
 
 .toggle-section label {
     display: flex;
     align-items: center;
-    margin-bottom: 0;
     cursor: pointer;
+    font-size: 15px;
+    color: #1976d2;
 }
 
-#hoverToggle {
-    margin-right: 8px;
+.toggle-section input[type="checkbox"] {
+    margin-right: 10px;
+    transform: scale(1.3);
 }
 
-/* Results table styling */
 .results-section {
     margin-top: 20px;
+}
+
+#results-info {
+    margin-bottom: 15px;
+    padding: 12px 16px;
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    border-radius: 4px;
+    font-size: 15px;
+    color: #155724;
+    display: none;
+}
+
+#results-info.show {
+    display: block;
 }
 
 #results {
     width: 100%;
     border-collapse: collapse;
-    background-color: white;
-    border-radius: 4px;
+    background: white;
+    border-radius: 8px;
     overflow: hidden;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
 
-#results th {
-    background-color: #f0f0f0;
-    padding: 12px 8px;
+#results thead th {
+    background: linear-gradient(135deg, #34495e, #2c3e50);
+    color: white;
+    padding: 15px 12px;
     text-align: left;
     font-weight: bold;
-    border-bottom: 2px solid #ddd;
-    color: #333;
+    font-size: 15px;
 }
 
-#results td {
-    padding: 10px 8px;
-    border-bottom: 1px solid #eee;
+#results tbody td {
+    padding: 12px;
+    border-bottom: 1px solid #ecf0f1;
+    font-size: 14px;
 }
 
-#results tr:nth-child(even) {
-    background-color: #f9f9f9;
+#results tbody tr:hover {
+    background-color: #f8f9fa;
 }
 
-#results tr:hover {
-    background-color: #f0f8ff;
+#results tbody tr:nth-child(even) {
+    background-color: #fdfdfd;
 }
 
-/* Totals row styling */
 .totals-row {
-    background-color: #e8f4f8 !important;
-    border-top: 2px solid #4CAF50 !important;
-}
-
-.totals-row:hover {
-    background-color: #e8f4f8 !important;
+    background: linear-gradient(135deg, #27ae60, #2ecc71);
+    color: white;
+    font-weight: bold;
 }
 
 .totals-row td {
-    padding: 12px 8px;
-    font-weight: bold;
-    color: #2e7d4a;
+    padding: 15px 12px;
+    border: none;
+    font-size: 15px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 850px) {
+    body {
+        width: 100%;
+    }
+    
+    .table-controls {
+        flex-direction: column;
+    }
+    
+    #inputTable thead th:nth-child(1) { width: 35%; }
+    #inputTable thead th:nth-child(2) { width: 18%; }
+    #inputTable thead th:nth-child(3) { width: 17%; }
+    #inputTable thead th:nth-child(4) { width: 18%; }
+    #inputTable thead th:nth-child(5) { width: 12%; }
+}
+
+@media (max-width: 640px) {
+    #inputTable, #results {
+        font-size: 12px;
+    }
+    
+    #inputTable input {
+        padding: 8px 10px;
+        font-size: 13px;
+    }
+    
+    #inputTable thead th, #inputTable tbody td, 
+    #results thead th, #results tbody td {
+        padding: 8px 6px;
+    }
 }

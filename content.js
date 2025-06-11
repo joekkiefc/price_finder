@@ -1,5 +1,5 @@
 // Content script for hover detection on websites
-console.log('🚀 Card Price Lookup - Content script loaded [VERSION 2.0 - DEBUG MODE]');
+console.log('🚀 Card Price Lookup - Content script loaded [VERSION 2.1 - HOVER DEBUG]');
 
 // Track hover state to prevent spam
 let lastHoveredElement = null;
@@ -34,98 +34,118 @@ function parseHoverText(text) {
     const cleanText = text.replace(/\s+/g, ' ').trim();
     console.log('🔍 Parsing hover text:', cleanText);
     
-    // Patterns to match common card formats:
-    // SV10 130/098, sv1a tropius, Team Rocket's Wanaider AR SV10 099/098, etc.
-    const patterns = [
-        // Pattern 1: Any text ending with SET CARDNUM/TOTAL (like "Team Rocket's Wanaider AR SV10 099/098")
-        /([a-zA-Z]+\d+[a-zA-Z]*)\s+(\d+)\/(\d+)/i,
-        // Pattern 2: Name (SET CARDNUM) format (like "Team Rocket's Mewtwo ex (sv10 125)")
-        /(.+?)\s*\(([a-zA-Z]+\d+[a-zA-Z]*)\s+(\d+)\)/i,
-        // Pattern 3: SET followed by name (sv1a tropius)
-        /\b([a-zA-Z]+\d+[a-zA-Z]*)\s+([a-zA-Z][a-zA-Z\s']*[a-zA-Z])\b/i,
-        // Pattern 4: Name followed by SET (tropius sv1a)  
-        /\b([a-zA-Z][a-zA-Z\s']*[a-zA-Z])\s+([a-zA-Z]+\d+[a-zA-Z]*)\b/i,
-        // Pattern 5: Just SET CODE extraction from any text
-        /\b([a-zA-Z]+\d+[a-zA-Z]*)\b/i
-    ];
+    let foundSetCode = null;
+    let foundCardNumber = null;
+    let foundCardType = null;
     
-    for (let i = 0; i < patterns.length; i++) {
-        const pattern = patterns[i];
-        const match = cleanText.match(pattern);
-        console.log(`🎯 Pattern ${i + 1} test:`, pattern, '→ match:', match);
-        
-        if (match) {
-            let set_number = null;
-            let name = null;
-            let card_number = null;
-            
-            if (i === 0) {
-                // Pattern 1: "Team Rocket's Wanaider AR SV10 099/098" format
-                set_number = match[1].toLowerCase();
-                card_number = match[2];
-                // Extract name from everything before the set code
-                const beforeSet = cleanText.substring(0, cleanText.indexOf(match[1])).trim();
-                if (beforeSet && beforeSet.length > 2) {
-                    name = beforeSet.toLowerCase();
-                }
-                console.log('✅ Pattern 1 - Complex card:', cleanText, '→ set:', set_number, 'card:', card_number, 'name:', name);
-                return { set_number, card_number, name, original: cleanText };
-            } else if (i === 1) {
-                // Pattern 2: "Team Rocket's Mewtwo ex (sv10 125)" format
-                name = match[1].toLowerCase().trim();
-                set_number = match[2].toLowerCase();
-                card_number = match[3];
-                console.log('✅ Pattern 2 - Name (Set Card):', cleanText, '→ name:', name, 'set:', set_number, 'card:', card_number);
-                return { set_number, card_number, name, original: cleanText };
-            } else if (i === 2) {
-                // sv1a tropius format
-                set_number = match[1].toLowerCase();
-                name = match[2].toLowerCase();
-                console.log('✅ Pattern 3 - Set + Name:', cleanText, '→ set:', set_number, 'name:', name);
-                return { set_number, name, card_number: null, original: cleanText };
-            } else if (i === 3) {
-                // tropius sv1a format
-                name = match[1].toLowerCase();
-                set_number = match[2].toLowerCase();
-                console.log('✅ Pattern 4 - Name + Set:', cleanText, '→ name:', name, 'set:', set_number);
-                return { set_number, name, card_number: null, original: cleanText };
-            } else if (i === 4) {
-                // Just set code fallback
-                set_number = match[1].toLowerCase();
-                console.log('✅ Pattern 5 - Set only:', cleanText, '→ set:', set_number);
-                return { set_number, name: null, card_number: null, original: cleanText };
-            }
+    // 1. SCAN FOR SET CODES (sv1, sv10, sv2a, s12a, xy1, bw1, etc.)
+    const setCodeRegex = /\b([a-zA-Z]{1,4}\d{1,3}[a-zA-Z]{0,2})\b/gi;
+    const setMatches = cleanText.match(setCodeRegex);
+    if (setMatches && setMatches.length > 0) {
+        // Take the first set code found
+        foundSetCode = setMatches[0].toLowerCase();
+        console.log('🎯 Found set code:', foundSetCode);
+    }
+    
+    // 2. SCAN FOR CARD NUMBERS (usually 1-3 digits, sometimes with leading zeros)
+    const cardNumberRegex = /\b(\d{1,3})\b/g;
+    const numberMatches = [];
+    let match;
+    while ((match = cardNumberRegex.exec(cleanText)) !== null) {
+        const num = match[1];
+        // Filter out years, very large numbers, etc.
+        if (num.length <= 3 && parseInt(num) <= 999) {
+            numberMatches.push(num);
         }
     }
     
-    console.log('❌ No card info found in:', cleanText);
+    // Special handling for "NUMBER/TOTAL" format (like "100/098")
+    const cardNumberSlashPattern = /\b(\d{1,3})\/(\d{1,3})\b/;
+    const slashMatch = cleanText.match(cardNumberSlashPattern);
+    if (slashMatch) {
+        // In "100/098" format, the first number (100) is the card number
+        foundCardNumber = slashMatch[1];
+        console.log('🎯 Found card number from slash format:', foundCardNumber, '(from', slashMatch[0] + ')');
+    } else if (numberMatches.length > 0) {
+        // Prefer 3-digit numbers (with leading zeros), then largest number
+        foundCardNumber = numberMatches.reduce((best, current) => {
+            if (current.length === 3) return current; // Prefer 3-digit
+            if (best.length === 3) return best;
+            return parseInt(current) > parseInt(best) ? current : best;
+        });
+        console.log('🎯 Found card number:', foundCardNumber, '(from options:', numberMatches.join(', ') + ')');
+    }
+    
+    // 3. SCAN FOR CARD TYPES/RARITIES (ar, sar, sr, chr, ur, rr, hr, rainbow)
+    const cardTypeRegex = /\b(sar|sr|ar|chr|ur|rr|hr|rainbow|rainbow\s*r)\b/gi;
+    const typeMatches = cleanText.match(cardTypeRegex);
+    if (typeMatches && typeMatches.length > 0) {
+        // Clean up the type (remove spaces, lowercase)
+        foundCardType = typeMatches[0].replace(/\s+/g, ' ').trim().toLowerCase();
+        if (foundCardType === 'rainbow r') foundCardType = 'rainbow r'; // Keep space for this one
+        console.log('🎯 Found card type:', foundCardType);
+    }
+    
+    // 4. BUILD SEARCH QUERY FROM FOUND COMPONENTS
+    if (foundSetCode || foundCardNumber || foundCardType) {
+        const result = {
+            set_number: foundSetCode,
+            name: null, // We ignore names because they can be translated
+            card_number: foundCardNumber,
+            card_type: foundCardType,
+            original: cleanText
+        };
+        
+        console.log('✅ Extracted card info:', result);
+        console.log(`🔍 Will search with: Set="${foundSetCode || 'any'}", Number="${foundCardNumber || 'any'}", Type="${foundCardType || 'any'}"`);
+        return result;
+    }
+    
+    console.log('❌ No card components found in:', cleanText);
     return null; // No card info found
 }
 
 // Query Supabase for card prices (Task 10)
 async function queryCardPrices(cardInfo) {
     try {
-        console.log('Querying prices for hover card:', cardInfo);
+        console.log('🔍 Querying prices for hover card:', cardInfo);
         
-        const response = await new Promise((resolve) => {
+        const response = await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                reject(new Error('Hover query timeout'));
+            }, 10000);
+            
             chrome.runtime.sendMessage(
-                { action: 'querySupabase', cards: [cardInfo] }, 
-                resolve
+                { action: 'searchCards', query: cardInfo }, 
+                (response) => {
+                    clearTimeout(timeout);
+                    
+                    if (chrome.runtime.lastError) {
+                        console.error('❌ Chrome runtime error in hover:', chrome.runtime.lastError);
+                        reject(new Error(chrome.runtime.lastError.message));
+                        return;
+                    }
+                    
+                    console.log('📨 Hover response received:', response);
+                    console.log('📨 Response.data type:', typeof response.data, 'Length:', response.data?.length);
+                    if (response.data && response.data.length > 0) {
+                        console.log('📨 First item in response.data:', response.data[0]);
+                    }
+                    resolve(response);
+                }
             );
         });
         
-        if (response && response.success && response.data.length > 0) {
-            const result = response.data[0];
-            if (result.supabase_data && result.supabase_data.length > 0) {
-                console.log('Hover prices found:', result.supabase_data);
-                return result.supabase_data;
-            }
+        if (response && response.success && response.data && response.data.length > 0) {
+            // New searchCards action returns data directly
+            console.log('💰 Hover prices found:', response.data.length, 'results');
+            return response.data;
         }
         
-        console.log('No prices found for hover card');
+        console.log('❌ No prices found for hover card');
         return null;
     } catch (error) {
-        console.error('Error querying hover card prices:', error);
+        console.error('❌ Error querying hover card prices:', error);
         return null;
     }
 }
@@ -138,12 +158,15 @@ function showPriceTooltip(element, priceData, cardInfo) {
     // Use first price result (in case multiple cards match)
     const data = priceData[0];
     
+    console.log('💡 Creating tooltip for:', data);
+    
     // Create tooltip element
     const tooltip = document.createElement('div');
     tooltip.className = 'card-price-tooltip';
     tooltip.innerHTML = `
         <div class="card-price-tooltip-header">
             ${data.name || cardInfo.name || 'Card'} (${(data.set_number || cardInfo.set_number || '').toUpperCase()})
+            ${data.card_type ? ' - ' + data.card_type.toUpperCase() : ''}
         </div>
         <div class="card-price-tooltip-prices">
             <span class="card-price-tooltip-label">Min:</span>
@@ -193,7 +216,7 @@ function showPriceTooltip(element, priceData, cardInfo) {
         tooltip.classList.add('show');
     }, 10);
     
-    console.log('Tooltip shown for:', data.name || cardInfo.name);
+    console.log('✅ Tooltip shown for:', data.name || cardInfo.name);
 }
 
 // Hide tooltip
@@ -208,16 +231,13 @@ function hideTooltip() {
 document.addEventListener('mouseover', function(event) {
     // Skip if hover detection is disabled (Task 12)
     if (!hoverEnabled) {
-        console.log('🚫 Hover detection is disabled');
         return;
     }
     
     const element = event.target;
-    console.log('👆 Mouse over element:', element.tagName, element.className);
     
     // Skip if same element or if we're hovering too fast
     if (element === lastHoveredElement) {
-        console.log('⏭️ Same element as before, skipping');
         return;
     }
     
@@ -229,7 +249,7 @@ document.addEventListener('mouseover', function(event) {
     
     // Set new timeout to avoid spam
     hoverTimeout = setTimeout(async () => {
-        console.log('⏰ Timeout triggered for element:', element.tagName);
+        console.log('👆 Hover triggered on:', element.tagName, element.className || '(no class)');
         lastHoveredElement = element;
         
         // Get text content from element
@@ -238,23 +258,17 @@ document.addEventListener('mouseover', function(event) {
         // Try different ways to get meaningful text
         if (element.textContent && element.textContent.trim()) {
             textContent = element.textContent.trim();
-            console.log('📝 Got textContent:', textContent.substring(0, 100) + '...');
         } else if (element.innerText && element.innerText.trim()) {
             textContent = element.innerText.trim();
-            console.log('📝 Got innerText:', textContent.substring(0, 100) + '...');
         } else if (element.title) {
             textContent = element.title.trim();
-            console.log('📝 Got title:', textContent);
         } else if (element.alt) {
             textContent = element.alt.trim();
-            console.log('📝 Got alt:', textContent);
         }
-        
-        console.log('📊 Text length:', textContent.length, 'Text preview:', textContent.substring(0, 50));
         
         // Only process if we have text and it's not too long
         if (textContent && textContent.length > 2 && textContent.length < 200) {
-            console.log('✅ Processing hover text:', textContent.substring(0, 100));
+            console.log('📝 Processing hover text:', textContent.substring(0, 100));
             
             // Task 9: Parse this text for card information
             const cardInfo = parseHoverText(textContent);
@@ -262,7 +276,6 @@ document.addEventListener('mouseover', function(event) {
                 console.log('🎯 Card info extracted:', cardInfo);
                 
                 // Task 10: Query Supabase with this card info
-                console.log('🔍 About to query prices...');
                 const priceData = await queryCardPrices(cardInfo);
                 if (priceData) {
                     console.log('💰 Price data received, showing tooltip...');
@@ -274,16 +287,8 @@ document.addEventListener('mouseover', function(event) {
             } else {
                 console.log('❌ No card info could be parsed from text');
             }
-        } else {
-            if (!textContent) {
-                console.log('❌ No text content found');
-            } else if (textContent.length <= 2) {
-                console.log('❌ Text too short:', textContent);
-            } else {
-                console.log('❌ Text too long:', textContent.length, 'chars');
-            }
         }
-    }, 300); // Increased delay to prevent spam
+    }, 500); // Increased delay to prevent spam
     
 }, false);
 
@@ -301,4 +306,4 @@ document.addEventListener('mouseout', function(event) {
     }
 }, false);
 
-console.log('Hover detection activated - hover over card text to see prices');
+console.log('🎯 Hover detection activated - hover over card text to see prices');

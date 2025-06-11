@@ -1,97 +1,196 @@
 // Card Price Lookup - Popup Script
 
-// Import Supabase configuration (we'll load this after DOM loads)
+let rowCounter = 0;
 
-// Parse input lines and extract card information
-function parseCardLines(input) {
-    const lines = input.trim().split('\n');
-    const cards = [];
+// Add a new row to the input table
+function addInputRow(name = '', set = '', number = '', type = '') {
+    const tbody = document.getElementById('inputTableBody');
+    const row = document.createElement('tr');
+    rowCounter++;
     
-    lines.forEach((line, index) => {
-        line = line.trim();
-        if (line === '') return; // Skip empty lines
-        
-        const parts = line.split(/\s+/); // Split on whitespace
-        let set_number = null;
-        let name = null;
-        let card_number = null;
-        
-        parts.forEach(part => {
-            // Check if this part looks like a set code (letters followed by numbers, starts with letters)
-            if (/^[a-zA-Z]+\d+[a-zA-Z]*$/i.test(part)) {
-                set_number = part.toLowerCase();
-            }
-            // Check if this part looks like a card number (only digits)
-            else if (/^\d+$/.test(part)) {
-                card_number = part;
-            }
-            // Everything else is considered part of the name
-            else {
-                if (name === null) {
-                    name = part.toLowerCase();
-                } else {
-                    name += ' ' + part.toLowerCase();
-                }
-            }
-        });
-        
-        const cardInfo = {
-            line_number: index + 1,
-            original: line,
-            set_number: set_number,
-            name: name,
-            card_number: card_number
-        };
-        
-        cards.push(cardInfo);
-        
-        // Debug: uncomment next line for detailed parsing logs
-        // console.log(`Line ${index + 1}: "${line}" → set: ${set_number}, name: ${name}, card: ${card_number}`);
-    });
+    row.innerHTML = `
+        <td><input type="text" placeholder="bijv. charizard" value="${name}" data-field="name"></td>
+        <td><input type="text" placeholder="bijv. sv7a" value="${set}" data-field="set"></td>
+        <td><input type="text" placeholder="bijv. 125" value="${number}" data-field="number"></td>
+        <td><input type="text" placeholder="bijv. ar, sar" value="${type}" data-field="type"></td>
+        <td><button class="delete-row-btn" onclick="deleteRow(this)">×</button></td>
+    `;
     
-    return cards;
+    tbody.appendChild(row);
+    
+    // Focus on the first input of the new row
+    const firstInput = row.querySelector('input');
+    if (firstInput) {
+        firstInput.focus();
+    }
+    
+    console.log('Added new input row');
 }
 
-// Fetch card prices via background worker (Task 6)
-async function fetchCardPrices(parsedCards) {
+// Delete a row from the input table
+function deleteRow(button) {
+    const row = button.closest('tr');
+    row.remove();
+    console.log('Deleted input row');
+}
+
+// Clear all rows
+function clearAllRows() {
+    const tbody = document.getElementById('inputTableBody');
+    tbody.innerHTML = '';
+    rowCounter = 0;
+    console.log('Cleared all input rows');
+}
+
+// Get all card data from input table
+function getCardDataFromTable() {
+    const tbody = document.getElementById('inputTableBody');
+    const rows = tbody.querySelectorAll('tr');
+    const cardData = [];
+    
+    rows.forEach((row, index) => {
+        const inputs = row.querySelectorAll('input');
+        const name = inputs[0].value.trim();
+        const set = inputs[1].value.trim();
+        const number = inputs[2].value.trim();
+        const type = inputs[3].value.trim();
+        
+        // Only add non-empty rows
+        if (name || set || number || type) {
+            cardData.push({
+                row_number: index + 1,
+                name: name || null,
+                set_number: set || null,
+                card_number: number || null,
+                card_type: type || null
+            });
+        }
+    });
+    
+    console.log('Extracted card data from table:', cardData);
+    return cardData;
+}
+
+// Fetch card prices via background worker
+async function fetchCardPrices(cardQueries) {
     console.log('=== FETCHING CARD PRICES ===');
-    console.log('Sending request to background worker...');
+    console.log(`Sending ${cardQueries.length} search queries to background worker...`);
+    
+    // Validate input
+    if (!Array.isArray(cardQueries) || cardQueries.length === 0) {
+        console.error('Invalid cardQueries:', cardQueries);
+        showResultsInfo(0, 0, 'Invalid search data');
+        renderResultsTable([]);
+        return [];
+    }
     
     try {
-        const response = await new Promise((resolve) => {
+        console.log('Sending message with action: searchMultipleCards');
+        console.log('Queries to send:', cardQueries);
+        
+        const response = await new Promise((resolve, reject) => {
+            // Set a timeout to catch hanging requests
+            const timeout = setTimeout(() => {
+                reject(new Error('Request timeout after 30 seconds'));
+            }, 30000);
+            
             chrome.runtime.sendMessage(
-                { action: 'querySupabase', cards: parsedCards }, 
-                resolve
+                { action: 'searchMultipleCards', queries: cardQueries }, 
+                (response) => {
+                    clearTimeout(timeout);
+                    
+                    // Check for chrome runtime errors
+                    if (chrome.runtime.lastError) {
+                        console.error('Chrome runtime error:', chrome.runtime.lastError);
+                        reject(new Error('Extension error: ' + chrome.runtime.lastError.message));
+                        return;
+                    }
+                    
+                    // Check if response is valid
+                    if (!response) {
+                        console.error('No response received from background worker');
+                        reject(new Error('No response from background worker'));
+                        return;
+                    }
+                    
+                    console.log('Received response from background:', response);
+                    resolve(response);
+                }
             );
         });
         
-        console.log('Response from background:', response);
-        
         if (response.success) {
-            console.log('\n=== FINAL RESULTS ===');
-            console.log(response.data);
+            console.log('\n=== SEARCH RESULTS ===');
+            console.log(`Found results for ${response.data.length} queries`);
             console.log('=========================');
             
-            // Task 7: Render results in HTML table
-            renderResultsTable(response.data);
-            return response.data;
+            // Flatten all results into single array
+            const allResults = [];
+            response.data.forEach(queryResult => {
+                if (queryResult.results && queryResult.results.length > 0) {
+                    queryResult.results.forEach(card => {
+                        allResults.push({
+                            ...card,
+                            query_info: {
+                                row: queryResult.query.row_number,
+                                original_query: queryResult.query
+                            }
+                        });
+                    });
+                }
+            });
+            
+            // Show results info
+            showResultsInfo(allResults.length, cardQueries.length);
+            
+            // Render results in HTML table
+            renderResultsTable(allResults);
+            return allResults;
         } else {
             console.error('Background worker error:', response.error);
-            // Show error in table
-            const errorResults = parsedCards.map(card => ({ ...card, error: response.error }));
-            renderResultsTable(errorResults);
-            return errorResults;
+            // Show error
+            showResultsInfo(0, cardQueries.length, response.error || 'Unknown error');
+            renderResultsTable([]);
+            return [];
         }
     } catch (error) {
         console.error('Message passing error:', error);
-        // Show error in table
-        const errorResults = parsedCards.map(card => ({ ...card, error: 'Connection error' }));
-        renderResultsTable(errorResults);
-        return errorResults;
+        // Show more specific error messages
+        let errorMessage = 'Connection error';
+        if (error.message.includes('timeout')) {
+            errorMessage = 'Request timeout - try again';
+        } else if (error.message.includes('Extension error')) {
+            errorMessage = 'Extension not properly loaded - reload the extension';
+        } else if (error.message.includes('No response')) {
+            errorMessage = 'Background worker not responding - reload the extension';
+        }
+        
+        showResultsInfo(0, cardQueries.length, errorMessage);
+        renderResultsTable([]);
+        return [];
     }
 }
 
-// Render results in HTML table (Task 7)
+// Show search results info
+function showResultsInfo(cardCount, queryCount, error = null) {
+    const infoDiv = document.getElementById('results-info');
+    
+    if (error) {
+        infoDiv.innerHTML = `<strong>Error:</strong> ${error}`;
+        infoDiv.style.background = '#f8d7da';
+        infoDiv.style.borderColor = '#f5c6cb';
+        infoDiv.style.color = '#721c24';
+    } else {
+        infoDiv.innerHTML = `<strong>${cardCount} kaarten gevonden</strong> uit ${queryCount} zoekopdrachten`;
+        infoDiv.style.background = '#d4edda';
+        infoDiv.style.borderColor = '#c3e6cb';
+        infoDiv.style.color = '#155724';
+    }
+    
+    infoDiv.classList.add('show');
+}
+
+// Render results in HTML table
 function renderResultsTable(results) {
     const table = document.getElementById('results');
     const tbody = table.querySelector('tbody');
@@ -104,61 +203,46 @@ function renderResultsTable(results) {
     let totalMax = 0;
     let validPriceCount = 0;
     
-    results.forEach(result => {
-        if (result.error) {
-            // Show error row
+    if (results.length === 0) {
+        const row = document.createElement('tr');
+        row.innerHTML = `<td colspan="7" style="text-align: center; color: #999; padding: 20px;">Geen kaarten gevonden</td>`;
+        tbody.appendChild(row);
+    } else {
+        results.forEach(card => {
             const row = document.createElement('tr');
+            const minPrice = parseFloat(card.min_price) || 0;
+            const avgPrice = parseFloat(card.avg_price) || 0;
+            const maxPrice = parseFloat(card.max_price) || 0;
+            
             row.innerHTML = `
-                <td>${result.set_number || '-'}</td>
-                <td>${result.name || result.original}</td>
-                <td colspan="3" style="color: red;">Error: ${result.error}</td>
+                <td>${card.set_number || '-'}</td>
+                <td>${card.name || '-'}</td>
+                <td>${card.card_number || '-'}</td>
+                <td>${card.card_type || '-'}</td>
+                <td>€${minPrice.toFixed(2)}</td>
+                <td>€${avgPrice.toFixed(2)}</td>
+                <td>€${maxPrice.toFixed(2)}</td>
             `;
+            
+            // Add to totals
+            totalMin += minPrice;
+            totalAvg += avgPrice;
+            totalMax += maxPrice;
+            validPriceCount++;
+            
             tbody.appendChild(row);
-        } else if (result.supabase_data && result.supabase_data.length > 0) {
-            // Handle multiple results from one query (e.g., all cards from a set)
-            result.supabase_data.forEach(data => {
-                const row = document.createElement('tr');
-                const minPrice = parseFloat(data.min_price) || 0;
-                const avgPrice = parseFloat(data.avg_price) || 0;
-                const maxPrice = parseFloat(data.max_price) || 0;
-                
-                row.innerHTML = `
-                    <td>${data.set_number || '-'}</td>
-                    <td>${data.name || '-'}</td>
-                    <td>€${minPrice.toFixed(2)}</td>
-                    <td>€${avgPrice.toFixed(2)}</td>
-                    <td>€${maxPrice.toFixed(2)}</td>
-                `;
-                
-                // Add to totals
-                totalMin += minPrice;
-                totalAvg += avgPrice;
-                totalMax += maxPrice;
-                validPriceCount++;
-                
-                tbody.appendChild(row);
-            });
-        } else {
-            // No data found
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${result.set_number || '-'}</td>
-                <td>${result.name || result.original}</td>
-                <td colspan="3" style="color: #999;">No data found</td>
-            `;
-            tbody.appendChild(row);
-        }
-    });
+        });
+    }
     
     // Update totals row
     document.getElementById('total-min').innerHTML = `<strong>€${totalMin.toFixed(2)}</strong>`;
     document.getElementById('total-avg').innerHTML = `<strong>€${totalAvg.toFixed(2)}</strong>`;
     document.getElementById('total-max').innerHTML = `<strong>€${totalMax.toFixed(2)}</strong>`;
     
-    console.log(`\nTable updated with ${tbody.children.length} rows. Totals: Min=€${totalMin.toFixed(2)}, Avg=€${totalAvg.toFixed(2)}, Max=€${totalMax.toFixed(2)}`);
+    console.log(`Table updated with ${results.length} cards. Totals: Min=€${totalMin.toFixed(2)}, Avg=€${totalAvg.toFixed(2)}, Max=€${totalMax.toFixed(2)}`);
 }
 
-// Manage hover toggle setting (Task 12)
+// Manage hover toggle setting
 async function loadHoverSetting() {
     try {
         const result = await chrome.storage.sync.get(['hoverEnabled']);
@@ -194,19 +278,54 @@ async function saveHoverSetting(enabled) {
     }
 }
 
-// Event listener for the lookup button
+// Event listeners
 document.addEventListener('DOMContentLoaded', async function() {
-    const inputTextarea = document.getElementById('input');
-    const goButton = document.getElementById('go');
+    const addRowButton = document.getElementById('addRowButton');
+    const clearAllButton = document.getElementById('clearAllButton');
+    const searchButton = document.getElementById('searchButton');
     const hoverToggle = document.getElementById('hoverToggle');
     
     // Extension ready
-    console.log('Popup loaded - ready to fetch card prices via background worker');
+    console.log('Popup loaded - ready to search cards!');
     
-    // Task 12: Load and set hover toggle state
+    // Test background worker connection
+    try {
+        console.log('Testing background worker connection...');
+        const testResponse = await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                reject(new Error('Background worker test timeout'));
+            }, 5000);
+            
+            chrome.runtime.sendMessage(
+                { action: 'test', test: true }, 
+                (response) => {
+                    clearTimeout(timeout);
+                    
+                    if (chrome.runtime.lastError) {
+                        console.error('Background worker test failed:', chrome.runtime.lastError);
+                        reject(new Error('Background worker not available'));
+                        return;
+                    }
+                    
+                    resolve(response || { received: true });
+                }
+            );
+        });
+        
+        console.log('Background worker test successful:', testResponse);
+        
+    } catch (error) {
+        console.error('Background worker test failed:', error);
+        showResultsInfo(0, 0, 'Extension not properly loaded - please reload the extension');
+    }
+    
+    // Load and set hover toggle state
     const hoverEnabled = await loadHoverSetting();
     hoverToggle.checked = hoverEnabled;
     console.log('Hover detection enabled:', hoverEnabled);
+    
+    // Add initial empty row
+    addInputRow();
     
     // Handle hover toggle changes
     hoverToggle.addEventListener('change', function() {
@@ -215,13 +334,63 @@ document.addEventListener('DOMContentLoaded', async function() {
         console.log('Hover detection toggled:', enabled);
     });
     
-    goButton.addEventListener('click', function() {
-        const inputText = inputTextarea.value;
-        console.log('Parsing', inputText.split('\n').length, 'cards...');
-        const parsedCards = parseCardLines(inputText);
-        console.log('Parsed cards:', parsedCards);
+    // Handle add row button
+    addRowButton.addEventListener('click', function() {
+        addInputRow();
+    });
+    
+    // Handle clear all button
+    clearAllButton.addEventListener('click', function() {
+        if (confirm('Weet je zeker dat je alle rijen wilt wissen?')) {
+            clearAllRows();
+            addInputRow(); // Add one empty row back
+        }
+    });
+    
+    // Handle search button click
+    searchButton.addEventListener('click', function() {
+        const cardQueries = getCardDataFromTable();
         
-        // Task 6: Call Supabase to get prices for each card
-        fetchCardPrices(parsedCards);
+        if (cardQueries.length === 0) {
+            showResultsInfo(0, 0, 'Vul minimaal één rij in');
+            renderResultsTable([]);
+            return;
+        }
+        
+        console.log('Starting search with queries:', cardQueries);
+        fetchCardPrices(cardQueries);
+    });
+    
+    // Handle Enter key in input fields - add new row
+    document.addEventListener('keypress', function(e) {
+        if (e.target.matches('#inputTable input') && e.key === 'Enter') {
+            e.preventDefault();
+            const currentRow = e.target.closest('tr');
+            const allInputs = currentRow.querySelectorAll('input');
+            const currentIndex = Array.from(allInputs).indexOf(e.target);
+            
+            // If this is the last input in the row, add a new row
+            if (currentIndex === allInputs.length - 1) {
+                addInputRow();
+            } else {
+                // Move to next input in same row
+                allInputs[currentIndex + 1].focus();
+            }
+        }
+    });
+    
+    // Handle Tab navigation within table
+    document.addEventListener('keydown', function(e) {
+        if (e.target.matches('#inputTable input') && e.key === 'Tab') {
+            const currentRow = e.target.closest('tr');
+            const allInputs = currentRow.querySelectorAll('input');
+            const currentIndex = Array.from(allInputs).indexOf(e.target);
+            
+            // If this is the last input in the row and we're not shift-tabbing
+            if (currentIndex === allInputs.length - 1 && !e.shiftKey) {
+                e.preventDefault();
+                addInputRow();
+            }
+        }
     });
 });

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hover Test - Card Price Lookup</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        .test-card {
+            display: inline-block;
+            margin: 10px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: #f9f9f9;
+            cursor: pointer;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border-left: 4px solid #007cba;
+            background: #f0f8ff;
+        }
+        h2 {
+            color: #333;
+        }
+        .instructions {
+            background: #ffffcc;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎯 Hover Test - Card Price Lookup</h1>
+    
+    <div class="instructions">
+        <strong>Test Instructions:</strong>
+        <ol>
+            <li>Zorg dat de Chrome extensie is geladen</li>
+            <li>Ga naar de popup en zet "Enable hover detection" aan</li>
+            <li>Hover over de onderstaande teksten om tooltips te zien</li>
+            <li>Open Developer Tools (F12) → Console om debug info te zien</li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h2>🧪 Test 1: Set + Type Formats</h2>
+        <div class="test-card">sv2a ar</div>
+        <div class="test-card">sv10 sar</div>
+        <div class="test-card">sv7a chr</div>
+        <div class="test-card">s12a rr</div>
+    </div>
+
+    <div class="test-section">
+        <h2>🧪 Test 2: Name + Set Formats</h2>
+        <div class="test-card">charizard sv10</div>
+        <div class="test-card">wartortle sv2a</div>
+        <div class="test-card">sv10 mewtwo ex</div>
+        <div class="test-card">sv7a pikachu</div>
+    </div>
+
+    <div class="test-section">
+        <h2>🧪 Test 3: Complex Formats</h2>
+        <div class="test-card">Team Rocket's Mewtwo ex (sv10 125)</div>
+        <div class="test-card">Charizard AR SV10 099/098</div>
+        <div class="test-card">sv2a 050/068</div>
+    </div>
+
+    <div class="test-section">
+        <h2>🧪 Test 4: Just Set Codes</h2>
+        <div class="test-card">sv1</div>
+        <div class="test-card">sv10</div>
+        <div class="test-card">sv2a</div>
+        <div class="test-card">s12a</div>
+    </div>
+
+    <div class="test-section">
+        <h2>🧪 Test 5: Real Card Names</h2>
+        <div class="test-card">wartortle</div>
+        <div class="test-card">charizard ex</div>
+        <div class="test-card">mewtwo vstar</div>
+        <div class="test-card">pikachu</div>
+    </div>
+
+    <script>
+        console.log('🎯 Hover test page loaded');
+        console.log('Open Chrome Developer Tools → Console to see hover debug info');
+        
+        // Add click handlers for testing
+        document.querySelectorAll('.test-card').forEach(card => {
+            card.addEventListener('click', () => {
+                console.log('🖱️ Clicked on test card:', card.textContent);
+            });
+        });
+    </script>
+</body>
+</html> 
