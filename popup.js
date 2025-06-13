@@ -190,6 +190,49 @@ function showResultsInfo(cardCount, queryCount, error = null) {
     infoDiv.classList.add('show');
 }
 
+// Make updateQuantity function globally available
+window.updateQuantity = function(rowIndex, change) {
+    const tbody = document.getElementById('results').querySelector('tbody');
+    const row = tbody.children[rowIndex];
+    if (!row) return;
+    
+    // Get current quantity and update it
+    let quantity = parseInt(row.dataset.quantity) || 1;
+    quantity = Math.max(1, quantity + change); // Ensure quantity doesn't go below 1
+    row.dataset.quantity = quantity;
+    
+    // Update quantity display
+    const quantitySpan = row.querySelector('.quantity');
+    if (quantitySpan) {
+        quantitySpan.textContent = quantity;
+    }
+    
+    // Update minus button state
+    const minusButton = row.querySelector('.quantity-controls button:first-child');
+    if (minusButton) {
+        minusButton.disabled = quantity <= 1;
+    }
+
+    // Update prices in the row
+    const minPrice = parseFloat(row.dataset.minPrice) || 0;
+    const avgPrice = parseFloat(row.dataset.avgPrice) || 0;
+    const maxPrice = parseFloat(row.dataset.maxPrice) || 0;
+
+    // Get the price cells
+    const priceCells = row.querySelectorAll('td');
+    const minCell = priceCells[5]; // 6th cell (0-based index)
+    const avgCell = priceCells[6]; // 7th cell
+    const maxCell = priceCells[7]; // 8th cell
+
+    // Update the displayed prices with the new quantity
+    minCell.textContent = `€${(minPrice * quantity).toFixed(2)}`;
+    avgCell.textContent = `€${(avgPrice * quantity).toFixed(2)}`;
+    maxCell.textContent = `€${(maxPrice * quantity).toFixed(2)}`;
+    
+    // Update totals
+    updateTotalPrices();
+}
+
 // Render results in HTML table
 function renderResultsTable(results) {
     const table = document.getElementById('results');
@@ -205,24 +248,50 @@ function renderResultsTable(results) {
     
     if (results.length === 0) {
         const row = document.createElement('tr');
-        row.innerHTML = `<td colspan="7" style="text-align: center; color: #999; padding: 20px;">Geen kaarten gevonden</td>`;
+        row.innerHTML = `<td colspan="8" style="text-align: center; color: #999; padding: 20px;">Geen kaarten gevonden</td>`;
         tbody.appendChild(row);
     } else {
-        results.forEach(card => {
+        results.forEach((card, index) => {
             const row = document.createElement('tr');
             const minPrice = parseFloat(card.min_price) || 0;
             const avgPrice = parseFloat(card.avg_price) || 0;
             const maxPrice = parseFloat(card.max_price) || 0;
             
-            row.innerHTML = `
+            // Add data-price attributes for easy access when updating totals
+            row.dataset.minPrice = minPrice;
+            row.dataset.avgPrice = avgPrice;
+            row.dataset.maxPrice = maxPrice;
+            row.dataset.quantity = '1'; // Default quantity
+            
+            // Create row content
+            const rowContent = document.createElement('tr');
+            rowContent.innerHTML = `
                 <td>${card.set_number || '-'}</td>
                 <td>${card.name || '-'}</td>
                 <td>${card.card_number || '-'}</td>
                 <td>${card.card_type || '-'}</td>
+                <td>
+                    <div class="quantity-controls">
+                        <button class="minus-btn" data-row="${index}">-</button>
+                        <span class="quantity">1</span>
+                        <button class="plus-btn" data-row="${index}">+</button>
+                    </div>
+                </td>
                 <td>€${minPrice.toFixed(2)}</td>
                 <td>€${avgPrice.toFixed(2)}</td>
                 <td>€${maxPrice.toFixed(2)}</td>
             `;
+            
+            // Copy content to the actual row
+            row.innerHTML = rowContent.innerHTML;
+            
+            // Add event listeners to buttons
+            const minusBtn = row.querySelector('.minus-btn');
+            const plusBtn = row.querySelector('.plus-btn');
+            
+            minusBtn.addEventListener('click', () => updateQuantity(index, -1));
+            plusBtn.addEventListener('click', () => updateQuantity(index, 1));
+            minusBtn.disabled = true; // Initially disabled since quantity starts at 1
             
             // Add to totals
             totalMin += minPrice;
@@ -235,11 +304,32 @@ function renderResultsTable(results) {
     }
     
     // Update totals row
+    updateTotalPrices();
+    
+    console.log(`Table updated with ${results.length} cards. Totals: Min=€${totalMin.toFixed(2)}, Avg=€${totalAvg.toFixed(2)}, Max=€${totalMax.toFixed(2)}`);
+}
+
+// Update total prices based on quantities
+function updateTotalPrices() {
+    const tbody = document.getElementById('results').querySelector('tbody');
+    let totalMin = 0;
+    let totalAvg = 0;
+    let totalMax = 0;
+    
+    // Calculate new totals
+    Array.from(tbody.children).forEach(row => {
+        const quantity = parseInt(row.dataset.quantity) || 1;
+        totalMin += (parseFloat(row.dataset.minPrice) || 0) * quantity;
+        totalAvg += (parseFloat(row.dataset.avgPrice) || 0) * quantity;
+        totalMax += (parseFloat(row.dataset.maxPrice) || 0) * quantity;
+    });
+    
+    // Update totals display
     document.getElementById('total-min').innerHTML = `<strong>€${totalMin.toFixed(2)}</strong>`;
     document.getElementById('total-avg').innerHTML = `<strong>€${totalAvg.toFixed(2)}</strong>`;
     document.getElementById('total-max').innerHTML = `<strong>€${totalMax.toFixed(2)}</strong>`;
     
-    console.log(`Table updated with ${results.length} cards. Totals: Min=€${totalMin.toFixed(2)}, Avg=€${totalAvg.toFixed(2)}, Max=€${totalMax.toFixed(2)}`);
+    console.log(`Totals updated: Min=€${totalMin.toFixed(2)}, Avg=€${totalAvg.toFixed(2)}, Max=€${totalMax.toFixed(2)}`);
 }
 
 // Manage hover toggle setting
