@@ -140,6 +140,9 @@ async function fetchCardPrices(cardQueries) {
                 }
             });
             
+            // Save the results
+            saveResults(allResults);
+            
             // Show results info
             showResultsInfo(allResults.length, cardQueries.length);
             
@@ -190,7 +193,102 @@ function showResultsInfo(cardCount, queryCount, error = null) {
     infoDiv.classList.add('show');
 }
 
-// Make updateQuantity function globally available
+// Save results to Chrome storage
+function saveResults(results) {
+    const resultsToSave = results.map(card => ({
+        ...card,
+        quantity: 1 // Default quantity for new results
+    }));
+    
+    chrome.storage.local.set({ 'savedResults': resultsToSave }, function() {
+        console.log('Results saved:', resultsToSave);
+    });
+}
+
+// Load saved results from Chrome storage
+async function loadSavedResults() {
+    return new Promise((resolve) => {
+        chrome.storage.local.get(['savedResults'], function(result) {
+            console.log('Loaded saved results:', result.savedResults);
+            if (result.savedResults) {
+                // Filter out cards with quantity 0 before rendering
+                const filteredResults = result.savedResults.filter(card => 
+                    !card.hasOwnProperty('quantity') || card.quantity > 0
+                );
+                renderResultsTable(filteredResults);
+            }
+            resolve(result.savedResults || []);
+        });
+    });
+}
+
+// Save quantity updates
+function saveQuantityUpdate(rowIndex, quantity) {
+    chrome.storage.local.get(['savedResults'], function(result) {
+        if (result.savedResults) {
+            const updatedResults = result.savedResults;
+            if (updatedResults[rowIndex]) {
+                updatedResults[rowIndex].quantity = quantity;
+                // Save the updated results
+                chrome.storage.local.set({ 'savedResults': updatedResults }, function() {
+                    console.log('Updated quantity saved for row', rowIndex);
+                });
+            }
+        }
+    });
+}
+
+// Update total prices and card count
+function updateTotalPrices() {
+    const tbody = document.getElementById('results').querySelector('tbody');
+    let totalMin = 0;
+    let totalAvg = 0;
+    let totalMax = 0;
+    let totalCards = 0;
+    
+    // Calculate new totals
+    Array.from(tbody.children).forEach(row => {
+        // Skip rows that show "no results" message
+        if (row.cells.length < 8) return;
+        
+        const quantity = parseInt(row.dataset.quantity) || 0;
+        // Add to total cards count
+        totalCards += quantity;
+        
+        // Only add to price totals if quantity is greater than 0
+        if (quantity > 0) {
+            totalMin += (parseFloat(row.dataset.minPrice) || 0) * quantity;
+            totalAvg += (parseFloat(row.dataset.avgPrice) || 0) * quantity;
+            totalMax += (parseFloat(row.dataset.maxPrice) || 0) * quantity;
+        }
+    });
+    
+    // Update totals display
+    document.getElementById('total-cards').innerHTML = `<strong>${totalCards}</strong>`;
+    document.getElementById('total-min').innerHTML = `<strong>€${totalMin.toFixed(2)}</strong>`;
+    document.getElementById('total-avg').innerHTML = `<strong>€${totalAvg.toFixed(2)}</strong>`;
+    document.getElementById('total-max').innerHTML = `<strong>€${totalMax.toFixed(2)}</strong>`;
+    
+    console.log(`Totals updated: Min=€${totalMin.toFixed(2)}, Avg=€${totalAvg.toFixed(2)}, Max=€${totalMax.toFixed(2)}, Cards=${totalCards}`);
+}
+
+// Reset all results
+function resetResults() {
+    chrome.storage.local.remove(['savedResults'], function() {
+        console.log('Results reset');
+        // Clear the results table
+        const table = document.getElementById('results');
+        const tbody = table.querySelector('tbody');
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #999; padding: 20px;">Geen kaarten gevonden</td></tr>';
+        // Reset totals
+        document.getElementById('total-cards').innerHTML = '<strong>0</strong>';
+        document.getElementById('total-min').innerHTML = '<strong>€0.00</strong>';
+        document.getElementById('total-avg').innerHTML = '<strong>€0.00</strong>';
+        document.getElementById('total-max').innerHTML = '<strong>€0.00</strong>';
+    });
+}
+
+// Update the updateQuantity function to save changes
 window.updateQuantity = function(rowIndex, change) {
     const tbody = document.getElementById('results').querySelector('tbody');
     const row = tbody.children[rowIndex];
@@ -198,7 +296,7 @@ window.updateQuantity = function(rowIndex, change) {
     
     // Get current quantity and update it
     let quantity = parseInt(row.dataset.quantity) || 1;
-    quantity = Math.max(1, quantity + change); // Ensure quantity doesn't go below 1
+    quantity = Math.max(0, quantity + change);
     row.dataset.quantity = quantity;
     
     // Update quantity display
@@ -210,7 +308,7 @@ window.updateQuantity = function(rowIndex, change) {
     // Update minus button state
     const minusButton = row.querySelector('.quantity-controls button:first-child');
     if (minusButton) {
-        minusButton.disabled = quantity <= 1;
+        minusButton.disabled = quantity <= 0;
     }
 
     // Update prices in the row
@@ -220,14 +318,17 @@ window.updateQuantity = function(rowIndex, change) {
 
     // Get the price cells
     const priceCells = row.querySelectorAll('td');
-    const minCell = priceCells[5]; // 6th cell (0-based index)
-    const avgCell = priceCells[6]; // 7th cell
-    const maxCell = priceCells[7]; // 8th cell
+    const minCell = priceCells[5];
+    const avgCell = priceCells[6];
+    const maxCell = priceCells[7];
 
     // Update the displayed prices with the new quantity
     minCell.textContent = `€${(minPrice * quantity).toFixed(2)}`;
     avgCell.textContent = `€${(avgPrice * quantity).toFixed(2)}`;
     maxCell.textContent = `€${(maxPrice * quantity).toFixed(2)}`;
+    
+    // Save the quantity update
+    saveQuantityUpdate(rowIndex, quantity);
     
     // Update totals
     updateTotalPrices();
@@ -257,11 +358,14 @@ function renderResultsTable(results) {
             const avgPrice = parseFloat(card.avg_price) || 0;
             const maxPrice = parseFloat(card.max_price) || 0;
             
+            // Use saved quantity or default to 1
+            const quantity = card.hasOwnProperty('quantity') ? card.quantity : 1;
+            
             // Add data-price attributes for easy access when updating totals
             row.dataset.minPrice = minPrice;
             row.dataset.avgPrice = avgPrice;
             row.dataset.maxPrice = maxPrice;
-            row.dataset.quantity = '1'; // Default quantity
+            row.dataset.quantity = quantity;
             
             // Create row content
             const rowContent = document.createElement('tr');
@@ -272,14 +376,14 @@ function renderResultsTable(results) {
                 <td>${card.card_type || '-'}</td>
                 <td>
                     <div class="quantity-controls">
-                        <button class="minus-btn" data-row="${index}">-</button>
-                        <span class="quantity">1</span>
+                        <button class="minus-btn" data-row="${index}" ${quantity <= 0 ? 'disabled' : ''}>-</button>
+                        <span class="quantity">${quantity}</span>
                         <button class="plus-btn" data-row="${index}">+</button>
                     </div>
                 </td>
-                <td>€${minPrice.toFixed(2)}</td>
-                <td>€${avgPrice.toFixed(2)}</td>
-                <td>€${maxPrice.toFixed(2)}</td>
+                <td>€${(minPrice * quantity).toFixed(2)}</td>
+                <td>€${(avgPrice * quantity).toFixed(2)}</td>
+                <td>€${(maxPrice * quantity).toFixed(2)}</td>
             `;
             
             // Copy content to the actual row
@@ -291,13 +395,14 @@ function renderResultsTable(results) {
             
             minusBtn.addEventListener('click', () => updateQuantity(index, -1));
             plusBtn.addEventListener('click', () => updateQuantity(index, 1));
-            minusBtn.disabled = true; // Initially disabled since quantity starts at 1
             
-            // Add to totals
-            totalMin += minPrice;
-            totalAvg += avgPrice;
-            totalMax += maxPrice;
-            validPriceCount++;
+            // Add to totals if quantity > 0
+            if (quantity > 0) {
+                totalMin += minPrice * quantity;
+                totalAvg += avgPrice * quantity;
+                totalMax += maxPrice * quantity;
+                validPriceCount++;
+            }
             
             tbody.appendChild(row);
         });
@@ -307,29 +412,6 @@ function renderResultsTable(results) {
     updateTotalPrices();
     
     console.log(`Table updated with ${results.length} cards. Totals: Min=€${totalMin.toFixed(2)}, Avg=€${totalAvg.toFixed(2)}, Max=€${totalMax.toFixed(2)}`);
-}
-
-// Update total prices based on quantities
-function updateTotalPrices() {
-    const tbody = document.getElementById('results').querySelector('tbody');
-    let totalMin = 0;
-    let totalAvg = 0;
-    let totalMax = 0;
-    
-    // Calculate new totals
-    Array.from(tbody.children).forEach(row => {
-        const quantity = parseInt(row.dataset.quantity) || 1;
-        totalMin += (parseFloat(row.dataset.minPrice) || 0) * quantity;
-        totalAvg += (parseFloat(row.dataset.avgPrice) || 0) * quantity;
-        totalMax += (parseFloat(row.dataset.maxPrice) || 0) * quantity;
-    });
-    
-    // Update totals display
-    document.getElementById('total-min').innerHTML = `<strong>€${totalMin.toFixed(2)}</strong>`;
-    document.getElementById('total-avg').innerHTML = `<strong>€${totalAvg.toFixed(2)}</strong>`;
-    document.getElementById('total-max').innerHTML = `<strong>€${totalMax.toFixed(2)}</strong>`;
-    
-    console.log(`Totals updated: Min=€${totalMin.toFixed(2)}, Avg=€${totalAvg.toFixed(2)}, Max=€${totalMax.toFixed(2)}`);
 }
 
 // Manage hover toggle setting
@@ -373,6 +455,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     const addRowButton = document.getElementById('addRowButton');
     const clearAllButton = document.getElementById('clearAllButton');
     const searchButton = document.getElementById('searchButton');
+    const resetResultsButton = document.getElementById('resetResultsButton');
     const hoverToggle = document.getElementById('hoverToggle');
     
     // Extension ready
@@ -414,6 +497,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     hoverToggle.checked = hoverEnabled;
     console.log('Hover detection enabled:', hoverEnabled);
     
+    // Load any saved results
+    await loadSavedResults();
+    
     // Add initial empty row
     addInputRow();
     
@@ -449,6 +535,13 @@ document.addEventListener('DOMContentLoaded', async function() {
         
         console.log('Starting search with queries:', cardQueries);
         fetchCardPrices(cardQueries);
+    });
+    
+    // Handle reset results button
+    resetResultsButton.addEventListener('click', function() {
+        if (confirm('Weet je zeker dat je alle resultaten wilt resetten?')) {
+            resetResults();
+        }
     });
     
     // Handle Enter key in input fields - add new row
