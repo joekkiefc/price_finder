@@ -50,7 +50,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         
         if (request.action === 'searchMultipleCards') {
             console.log('Processing searchMultipleCards with', request.queries?.length || 0, 'queries');
-            console.log('Include product categories:', request.includeProductCategories);
+            console.log('Include product categories:', request.includeProductCategories, '(type:', typeof request.includeProductCategories, ')');
             
             // Validate queries
             if (!request.queries || !Array.isArray(request.queries)) {
@@ -99,13 +99,15 @@ async function searchCards(query, includeProductCategories = false) {
     console.log('Include product categories:', includeProductCategories);
     
     // Build query URL with card_type column
-    let queryUrl = SUPABASE_URL + '/rest/v1/card_prices_view?select=set_number,name,card_number,card_id_simple,min_price,avg_price,max_price,scraped_at,card_type,url,product_category';
+    let queryUrl = SUPABASE_URL + '/rest/v1/card_prices_view?select=set_number,name,card_number,min_price,avg_price,max_price,scraped_at,card_type,product_category';
     let filters = [];
     
-    // Filter out products with product_category unless explicitly enabled
+    // SIMPLE: Add product_category=card filter UNLESS the checkbox is checked
     if (!includeProductCategories) {
-        filters.push('product_category=is.null');
-        console.log('🔍 Product category filter: excluding special categories');
+        filters.push('product_category=eq.card');
+        console.log('🔍 Adding product_category=card filter (checkbox OFF)');
+    } else {
+        console.log('🔍 No product_category filter (checkbox ON - showing all categories)');
     }
     
     // Add filters based on filled fields
@@ -193,7 +195,7 @@ async function searchCards(query, includeProductCategories = false) {
         if (data.length > 0) {
             console.log('✅ Sample results:');
             data.slice(0, 3).forEach((card, index) => {
-                console.log(`  ${index + 1}. ${card.name} (${card.set_number}) #${card.card_number} [${card.card_type || 'no type'}]`);
+                console.log(`  ${index + 1}. ${card.name} (${card.set_number}) #${card.card_number} [${card.card_type || 'no type'}] - category: ${card.product_category || 'null'}`);
             });
         } else {
             console.log('❌ NO RESULTS FOUND');
@@ -204,7 +206,11 @@ async function searchCards(query, includeProductCategories = false) {
             // FALLBACK: Try searching with just the set_number if we have one
             if (query.set_number && (query.card_number || query.card_type)) {
                 console.log('🔄 FALLBACK: Trying to search with only set_number...');
-                const fallbackUrl = SUPABASE_URL + '/rest/v1/card_prices_view?select=set_number,name,card_number,card_id_simple,min_price,avg_price,max_price,scraped_at,card_type&set_number=eq.' + encodeURIComponent(query.set_number.toLowerCase()) + '&limit=10';
+                let fallbackUrl = SUPABASE_URL + '/rest/v1/card_prices_view?select=set_number,name,card_number,min_price,avg_price,max_price,scraped_at,card_type&set_number=eq.' + encodeURIComponent(query.set_number.toLowerCase());
+                if (!includeProductCategories) {
+                    fallbackUrl += '&product_category=eq.card';
+                }
+                fallbackUrl += '&limit=10';
                 console.log('🔄 Fallback query:', fallbackUrl);
                 
                 try {
@@ -229,7 +235,11 @@ async function searchCards(query, includeProductCategories = false) {
                         } else {
                             // Try uppercase version
                             console.log('🔄 No results with lowercase, trying UPPERCASE...');
-                            const upperUrl = SUPABASE_URL + '/rest/v1/card_prices_view?select=set_number,name,card_number,card_type&set_number=eq.' + encodeURIComponent(query.set_number.toUpperCase()) + '&limit=10';
+                            let upperUrl = SUPABASE_URL + '/rest/v1/card_prices_view?select=set_number,name,card_number,card_type&set_number=eq.' + encodeURIComponent(query.set_number.toUpperCase());
+                            if (!includeProductCategories) {
+                                upperUrl += '&product_category=eq.card';
+                            }
+                            upperUrl += '&limit=10';
                             console.log('🔄 Uppercase query:', upperUrl);
                             
                             const upperResponse = await fetch(upperUrl, {
@@ -263,7 +273,11 @@ async function searchCards(query, includeProductCategories = false) {
             // If no results found, try a simpler query for debugging
             if (query.name && query.name.includes('ho-oh')) {
                 console.log('🔍 DEBUGGING: Trying to find ho-oh cards in database...');
-                const debugUrl = SUPABASE_URL + '/rest/v1/card_prices_view?select=name,set_number,card_number,card_type&name=ilike.*ho-oh*&limit=10';
+                let debugUrl = SUPABASE_URL + '/rest/v1/card_prices_view?select=name,set_number,card_number,card_type&name=ilike.*ho-oh*';
+                if (!includeProductCategories) {
+                    debugUrl += '&product_category=eq.card';
+                }
+                debugUrl += '&limit=10';
                 console.log('🔍 Debug query:', debugUrl);
                 
                 try {
