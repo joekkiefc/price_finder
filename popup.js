@@ -84,6 +84,11 @@ async function fetchCardPrices(cardQueries) {
         return [];
     }
     
+    // Check product category toggle setting
+    const productCategoryToggle = document.getElementById('productCategoryToggle');
+    const includeProductCategories = productCategoryToggle ? productCategoryToggle.checked : false;
+    console.log('Include product categories:', includeProductCategories);
+    
     try {
         console.log('Sending message with action: searchMultipleCards');
         console.log('Queries to send:', cardQueries);
@@ -95,7 +100,11 @@ async function fetchCardPrices(cardQueries) {
             }, 30000);
             
             chrome.runtime.sendMessage(
-                { action: 'searchMultipleCards', queries: cardQueries }, 
+                { 
+                    action: 'searchMultipleCards', 
+                    queries: cardQueries,
+                    includeProductCategories: includeProductCategories
+                }, 
                 (response) => {
                     clearTimeout(timeout);
                     
@@ -367,11 +376,16 @@ function renderResultsTable(results) {
             row.dataset.maxPrice = maxPrice;
             row.dataset.quantity = quantity;
             
+            // Create clickable name cell
+            const nameCell = card.url && card.url.trim() 
+                ? `<a href="${card.url}" target="_blank" rel="noopener noreferrer" style="color: #007cba; text-decoration: none; cursor: pointer;" title="Open ${card.name} op cardmarket">${card.name || '-'}</a>`
+                : (card.name || '-');
+            
             // Create row content
             const rowContent = document.createElement('tr');
             rowContent.innerHTML = `
                 <td>${card.set_number || '-'}</td>
-                <td>${card.name || '-'}</td>
+                <td>${nameCell}</td>
                 <td>${card.card_number || '-'}</td>
                 <td>${card.card_type || '-'}</td>
                 <td>
@@ -450,6 +464,26 @@ async function saveHoverSetting(enabled) {
     }
 }
 
+// Manage product category toggle setting
+async function loadProductCategorySetting() {
+    try {
+        const result = await chrome.storage.sync.get(['productCategoriesEnabled']);
+        return result.productCategoriesEnabled === true; // Default to false (disabled)
+    } catch (error) {
+        console.error('Error loading product category setting:', error);
+        return false; // Default to disabled
+    }
+}
+
+async function saveProductCategorySetting(enabled) {
+    try {
+        await chrome.storage.sync.set({ productCategoriesEnabled: enabled });
+        console.log('Product category setting saved:', enabled);
+    } catch (error) {
+        console.error('Error saving product category setting:', error);
+    }
+}
+
 // Event listeners
 document.addEventListener('DOMContentLoaded', async function() {
     const addRowButton = document.getElementById('addRowButton');
@@ -457,6 +491,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     const searchButton = document.getElementById('searchButton');
     const resetResultsButton = document.getElementById('resetResultsButton');
     const hoverToggle = document.getElementById('hoverToggle');
+    const productCategoryToggle = document.getElementById('productCategoryToggle');
     
     // Extension ready
     console.log('Popup loaded - ready to search cards!');
@@ -497,6 +532,11 @@ document.addEventListener('DOMContentLoaded', async function() {
     hoverToggle.checked = hoverEnabled;
     console.log('Hover detection enabled:', hoverEnabled);
     
+    // Load and set product category toggle state
+    const productCategoriesEnabled = await loadProductCategorySetting();
+    productCategoryToggle.checked = productCategoriesEnabled;
+    console.log('Product categories enabled:', productCategoriesEnabled);
+    
     // Load any saved results
     await loadSavedResults();
     
@@ -508,6 +548,13 @@ document.addEventListener('DOMContentLoaded', async function() {
         const enabled = hoverToggle.checked;
         saveHoverSetting(enabled);
         console.log('Hover detection toggled:', enabled);
+    });
+    
+    // Handle product category toggle changes
+    productCategoryToggle.addEventListener('change', function() {
+        const enabled = productCategoryToggle.checked;
+        saveProductCategorySetting(enabled);
+        console.log('Product categories toggled:', enabled);
     });
     
     // Handle add row button

@@ -50,6 +50,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         
         if (request.action === 'searchMultipleCards') {
             console.log('Processing searchMultipleCards with', request.queries?.length || 0, 'queries');
+            console.log('Include product categories:', request.includeProductCategories);
             
             // Validate queries
             if (!request.queries || !Array.isArray(request.queries)) {
@@ -59,7 +60,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             }
             
             // New multiple search functionality for table interface
-            searchMultipleCards(request.queries)
+            searchMultipleCards(request.queries, request.includeProductCategories)
                 .then(results => {
                     console.log('Background sending multiple search results:', results.length, 'queries processed');
                     sendResponse({ success: true, data: results });
@@ -92,13 +93,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 // New search function for 4-column interface
-async function searchCards(query) {
+async function searchCards(query, includeProductCategories = false) {
     console.log('=== SEARCHING CARDS ===');
     console.log('Search query:', query);
+    console.log('Include product categories:', includeProductCategories);
     
     // Build query URL with card_type column
-    let queryUrl = SUPABASE_URL + '/rest/v1/card_prices_view?select=set_number,name,card_number,card_id_simple,min_price,avg_price,max_price,scraped_at,card_type';
+    let queryUrl = SUPABASE_URL + '/rest/v1/card_prices_view?select=set_number,name,card_number,card_id_simple,min_price,avg_price,max_price,scraped_at,card_type,url,product_category';
     let filters = [];
+    
+    // Filter out products with product_category unless explicitly enabled
+    if (!includeProductCategories) {
+        filters.push('product_category=is.null');
+        console.log('🔍 Product category filter: excluding special categories');
+    }
     
     // Add filters based on filled fields
     if (query.set_number) {
@@ -189,138 +197,9 @@ async function searchCards(query) {
             });
         } else {
             console.log('❌ NO RESULTS FOUND');
-            console.log('🔎 Debug: Testing each criteria separately...');
+                        console.log('🔎 Debug: Try searching with less specific criteria');
             
-            // Test each criteria individually to find the issue
-            if (query.set_number) {
-                console.log('🧪 TEST 1: Searching only by set_number...');
-                const testUrl1 = SUPABASE_URL + '/rest/v1/card_prices_view?select=name,set_number,card_number,card_type&set_number=eq.' + encodeURIComponent(query.set_number.toLowerCase()) + '&limit=3';
-                
-                try {
-                    const testResponse1 = await fetch(testUrl1, {
-                        headers: {
-                            'apikey': SUPABASE_ANON_KEY,
-                            'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    
-                    if (testResponse1.ok) {
-                        const testData1 = await testResponse1.json();
-                        console.log(`🧪 Found ${testData1.length} cards with set "${query.set_number}":`);
-                        testData1.forEach(card => {
-                            console.log(`  - ${card.name} (${card.set_number}) #${card.card_number} [${card.card_type}]`);
-                        });
-                    }
-                } catch (e) {
-                    console.log('🧪 Test 1 failed:', e);
-                }
-            }
-            
-            if (query.card_number) {
-                const cleanCardNumber = parseInt(query.card_number).toString();
-                console.log(`🧪 TEST 2: Searching only by card_number (${cleanCardNumber})...`);
-                const testUrl2 = SUPABASE_URL + '/rest/v1/card_prices_view?select=name,set_number,card_number,card_type&card_number=eq.' + encodeURIComponent(cleanCardNumber) + '&limit=3';
-                
-                try {
-                    const testResponse2 = await fetch(testUrl2, {
-                        headers: {
-                            'apikey': SUPABASE_ANON_KEY,
-                            'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    
-                    if (testResponse2.ok) {
-                        const testData2 = await testResponse2.json();
-                        console.log(`🧪 Found ${testData2.length} cards with number "${cleanCardNumber}":`);
-                        testData2.forEach(card => {
-                            console.log(`  - ${card.name} (${card.set_number}) #${card.card_number} [${card.card_type}]`);
-                        });
-                    }
-                } catch (e) {
-                    console.log('🧪 Test 2 failed:', e);
-                }
-            }
-            
-            if (query.card_type) {
-                console.log(`🧪 TEST 3: Searching only by card_type (${query.card_type.toLowerCase()})...`);
-                const testUrl3 = SUPABASE_URL + '/rest/v1/card_prices_view?select=name,set_number,card_number,card_type&card_type=eq.' + encodeURIComponent(query.card_type.toLowerCase()) + '&limit=3';
-                
-                try {
-                    const testResponse3 = await fetch(testUrl3, {
-                        headers: {
-                            'apikey': SUPABASE_ANON_KEY,
-                            'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    
-                    if (testResponse3.ok) {
-                        const testData3 = await testResponse3.json();
-                        console.log(`🧪 Found ${testData3.length} cards with type "${query.card_type.toLowerCase()}":`);
-                        testData3.forEach(card => {
-                            console.log(`  - ${card.name} (${card.set_number}) #${card.card_number} [${card.card_type}]`);
-                        });
-                    }
-                } catch (e) {
-                    console.log('🧪 Test 3 failed:', e);
-                }
-            }
-            
-            // Test combinations to see where the AND logic fails
-            if (query.set_number && query.card_number) {
-                const cleanCardNumber = parseInt(query.card_number).toString();
-                console.log(`🧪 TEST 4: Combining set + card_number (${query.set_number} + ${cleanCardNumber})...`);
-                const testUrl4 = SUPABASE_URL + '/rest/v1/card_prices_view?select=name,set_number,card_number,card_type&set_number=eq.' + encodeURIComponent(query.set_number.toLowerCase()) + '&card_number=eq.' + encodeURIComponent(cleanCardNumber) + '&limit=3';
-                console.log('🧪 TEST 4 URL:', testUrl4);
-                
-                try {
-                    const testResponse4 = await fetch(testUrl4, {
-                        headers: {
-                            'apikey': SUPABASE_ANON_KEY,
-                            'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    
-                    if (testResponse4.ok) {
-                        const testData4 = await testResponse4.json();
-                        console.log(`🧪 Found ${testData4.length} cards with set+number "${query.set_number}+${cleanCardNumber}":`);
-                        testData4.forEach(card => {
-                            console.log(`  - ${card.name} (${card.set_number}) #${card.card_number} [${card.card_type}]`);
-                        });
-                    }
-                } catch (e) {
-                    console.log('🧪 Test 4 failed:', e);
-                }
-            }
-            
-            if (query.set_number && query.card_type) {
-                console.log(`🧪 TEST 5: Combining set + card_type (${query.set_number} + ${query.card_type.toLowerCase()})...`);
-                const testUrl5 = SUPABASE_URL + '/rest/v1/card_prices_view?select=name,set_number,card_number,card_type&set_number=eq.' + encodeURIComponent(query.set_number.toLowerCase()) + '&card_type=eq.' + encodeURIComponent(query.card_type.toLowerCase()) + '&limit=3';
-                console.log('🧪 TEST 5 URL:', testUrl5);
-                
-                try {
-                    const testResponse5 = await fetch(testUrl5, {
-                        headers: {
-                            'apikey': SUPABASE_ANON_KEY,
-                            'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    
-                    if (testResponse5.ok) {
-                        const testData5 = await testResponse5.json();
-                        console.log(`🧪 Found ${testData5.length} cards with set+type "${query.set_number}+${query.card_type.toLowerCase()}":`);
-                        testData5.forEach(card => {
-                            console.log(`  - ${card.name} (${card.set_number}) #${card.card_number} [${card.card_type}]`);
-                        });
-                    }
-                } catch (e) {
-                    console.log('🧪 Test 5 failed:', e);
-                }
-            }
+
             
             // FALLBACK: Try searching with just the set_number if we have one
             if (query.set_number && (query.card_number || query.card_type)) {
@@ -379,59 +258,7 @@ async function searchCards(query) {
                 }
             }
             
-            // Debug queries to see what's actually in the database
-            if (query.set_number && query.set_number.includes('sv10')) {
-                console.log('🔍 DEBUGGING: Checking what SV10 cards exist in database...');
-                const debugUrl = SUPABASE_URL + '/rest/v1/card_prices_view?select=name,set_number,card_number,card_type&set_number=eq.sv10&limit=10';
-                console.log('🔍 SV10 debug query:', debugUrl);
-                
-                try {
-                    const debugResponse = await fetch(debugUrl, {
-                        headers: {
-                            'apikey': SUPABASE_ANON_KEY,
-                            'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    
-                    if (debugResponse.ok) {
-                        const debugData = await debugResponse.json();
-                        console.log(`🔍 Found ${debugData.length} SV10 cards in database:`);
-                        debugData.forEach(card => {
-                            console.log(`  - ${card.name} (${card.set_number}) #${card.card_number} [${card.card_type || 'no type'}]`);
-                        });
-                    }
-                } catch (debugError) {
-                    console.log('🔍 SV10 debug query failed:', debugError);
-                }
-            }
-            
-            // Also check for SAR cards specifically
-            if (query.card_type && query.card_type.includes('sar')) {
-                console.log('🔍 DEBUGGING: Checking what SAR cards exist in database...');
-                const debugUrl2 = SUPABASE_URL + '/rest/v1/card_prices_view?select=name,set_number,card_number,card_type&card_type=eq.sar&limit=10';
-                console.log('🔍 SAR debug query:', debugUrl2);
-                
-                try {
-                    const debugResponse2 = await fetch(debugUrl2, {
-                        headers: {
-                            'apikey': SUPABASE_ANON_KEY,
-                            'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    
-                    if (debugResponse2.ok) {
-                        const debugData2 = await debugResponse2.json();
-                        console.log(`🔍 Found ${debugData2.length} SAR cards in database:`);
-                        debugData2.forEach(card => {
-                            console.log(`  - ${card.name} (${card.set_number}) #${card.card_number} [${card.card_type}]`);
-                        });
-                    }
-                } catch (debugError2) {
-                    console.log('🔍 SAR debug query failed:', debugError2);
-                }
-            }
+
             
             // If no results found, try a simpler query for debugging
             if (query.name && query.name.includes('ho-oh')) {
@@ -482,7 +309,7 @@ async function searchCards(query) {
 }
 
 // Legacy function for hover functionality (simplified)
-async function querySupabase(cards) {
+async function querySupabase(cards, includeProductCategories = false) {
     console.log('Legacy query for', cards.length, 'cards');
     const results = [];
     
@@ -500,7 +327,7 @@ async function querySupabase(cards) {
             
             console.log('Converted legacy card to search query:', searchQuery);
             
-            const data = await searchCards(searchQuery);
+            const data = await searchCards(searchQuery, includeProductCategories);
             results.push({ ...card, supabase_data: data });
             
         } catch (error) {
@@ -514,9 +341,10 @@ async function querySupabase(cards) {
 }
 
 // New function to handle multiple card searches
-async function searchMultipleCards(queries) {
+async function searchMultipleCards(queries, includeProductCategories = false) {
     console.log('=== SEARCHING MULTIPLE CARDS ===');
     console.log(`Processing ${queries.length} queries`);
+    console.log('Include product categories:', includeProductCategories);
     
     const results = [];
     
@@ -524,7 +352,7 @@ async function searchMultipleCards(queries) {
         console.log(`Processing query for row ${query.row_number}:`, query);
         
         try {
-            const searchResults = await searchCards(query);
+            const searchResults = await searchCards(query, includeProductCategories);
             results.push({
                 query: query,
                 results: searchResults,
