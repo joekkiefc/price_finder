@@ -12,7 +12,7 @@ function addInputRow(name = '', set = '', number = '', type = '') {
         <td><input type="text" placeholder="bijv. charizard" value="${name}" data-field="name"></td>
         <td><input type="text" placeholder="bijv. sv7a" value="${set}" data-field="set"></td>
         <td><input type="text" placeholder="bijv. 125" value="${number}" data-field="number"></td>
-        <td><input type="text" placeholder="bijv. ar, sar" value="${type}" data-field="type"></td>
+        <td><input type="text" placeholder="bijv. ar, sar, promo" value="${type}" data-field="type"></td>
         <td><button class="delete-row-btn" onclick="deleteRow(this)">×</button></td>
     `;
     

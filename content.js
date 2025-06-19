@@ -76,8 +76,8 @@ function parseHoverText(text) {
         console.log('🎯 Found card number:', foundCardNumber, '(from options:', numberMatches.join(', ') + ')');
     }
     
-    // 3. SCAN FOR CARD TYPES/RARITIES (ar, sar, sr, chr, ur, rr, hr, rainbow)
-    const cardTypeRegex = /\b(sar|sr|ar|chr|ur|rr|hr|rainbow|rainbow\s*r)\b/gi;
+    // 3. SCAN FOR CARD TYPES/RARITIES (ar, sar, sr, chr, ur, rr, hr, rainbow, promo)
+    const cardTypeRegex = /\b(sar|sr|ar|chr|ur|rr|hr|rainbow|rainbow\s*r|promo)\b/gi;
     const typeMatches = cleanText.match(cardTypeRegex);
     if (typeMatches && typeMatches.length > 0) {
         // Clean up the type (remove spaces, lowercase)
